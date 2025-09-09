@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { poolPromise, sql } = require('./db'); 
+const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
 const app = express();
@@ -23,9 +24,7 @@ async function runQuery(res, fn) {
 
 /* ----------------- PRODUCTS ----------------- */
 app.get('/products', async (req, res) => {
-  await runQuery(res, pool =>
-    pool.request().query('SELECT ProductID, DrugName FROM Products ORDER BY ProductID')
-  );
+  await runQuery(res, pool => pool.request().query('SELECT ProductID, DrugName FROM Products ORDER BY ProductID'));
 });
 
 app.get('/products/:id', async (req, res) => {
@@ -70,7 +69,6 @@ app.delete('/products/:id', async (req, res) => {
   );
 });
 
-
 /* ----------------- STOCKS ----------------- */
 app.get('/stocks', async (req, res) => {
   await runQuery(res, pool =>
@@ -114,7 +112,6 @@ app.delete('/stocks/:id', async (req, res) => {
   );
 });
 
-
 /* ----------------- RELEASES ----------------- */
 app.get('/release', async (req, res) => {
   await runQuery(res, pool =>
@@ -125,20 +122,17 @@ app.get('/release', async (req, res) => {
 
 app.post('/release', async (req, res) => {
   const { ProductID, DrugName, ReleaseDate, ExpiryDate } = req.body;
-  if (!ProductID || !ExpiryDate) 
-    return res.status(400).json({ error: 'ProductID and ExpiryDate are required' });
+  if (!ProductID || !ExpiryDate) return res.status(400).json({ error: 'ProductID and ExpiryDate are required' });
 
   try {
     const pool = await poolPromise;
 
-    // check if product exists
     const productCheck = await pool.request()
       .input('ProductID', sql.Int, ProductID)
       .query('SELECT COUNT(*) as count FROM Products WHERE ProductID=@ProductID');
 
-    if (productCheck.recordset[0].count === 0) {
+    if (productCheck.recordset[0].count === 0)
       return res.status(400).json({ error: `Product with ID ${ProductID} not found.` });
-    }
 
     const result = await pool.request()
       .input('ProductID', sql.Int, ProductID)
@@ -158,9 +152,7 @@ app.put('/release/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const { ProductID, DrugName, ReleaseDate, ExpiryDate } = req.body;
 
-  try {
-    const pool = await poolPromise;
-
+  await runQuery(res, async pool => {
     const result = await pool.request()
       .input('id', sql.Int, id)
       .input('ProductID', sql.Int, ProductID)
@@ -169,11 +161,8 @@ app.put('/release/:id', async (req, res) => {
       .input('ExpiryDate', sql.Date, ExpiryDate || null)
       .query('UPDATE Releases SET ProductID=@ProductID, DrugName=@DrugName, ReleaseDate=@ReleaseDate, ExpiryDate=@ExpiryDate WHERE ReleaseID=@id; SELECT @@ROWCOUNT AS rowsAffected');
 
-    res.json(result.recordset[0]);
-  } catch (err) {
-    console.error('PUT /release/:id error:', err);
-    res.status(500).json({ error: err.message });
-  }
+    return result;
+  });
 });
 
 app.delete('/release/:id', async (req, res) => {
@@ -185,49 +174,81 @@ app.delete('/release/:id', async (req, res) => {
   );
 });
 
-/* ----------------- SHORT EXPIRY ----------------- */
-app.get('/shortexpiry', async (req, res) => {
-  await runQuery(res, pool =>
-    pool.request()
-      .query('SELECT ReleaseID AS ShortID, ProductID, DrugName, ExpiryDate FROM vShortExpiry ORDER BY ExpiryDate')
-  );
-});
-
-
 /* ----------------- USERS ----------------- */
+// GET all users
 app.get('/users', async (req, res) => {
   await runQuery(res, pool =>
-    pool.request().query('SELECT UserID, Name, Email, Role FROM Users ORDER BY UserID')
+    pool.request().query(`
+      SELECT UserID, FullName, NameWithInitials, NIC, Telephone, Username
+      FROM Users
+      ORDER BY UserID
+    `)
   );
 });
 
+// POST a new user
 app.post('/users', async (req, res) => {
-  const { Name, Email, Role } = req.body;
-  if (!Name || !Email || !Role) return res.status(400).json({ error: 'Name, Email, Role required' });
+  const { FullName, NameWithInitials, NIC, Telephone, Username, Password, ConfirmedPassword } = req.body;
 
-  await runQuery(res, pool =>
-    pool.request()
-      .input('Name', sql.NVarChar(100), Name)
-      .input('Email', sql.NVarChar(100), Email)
-      .input('Role', sql.NVarChar(50), Role)
-      .query('INSERT INTO Users (Name, Email, Role) VALUES (@Name, @Email, @Role); SELECT SCOPE_IDENTITY() AS UserID')
-  );
+  if (!FullName || !NameWithInitials || !NIC || !Username || !Password || !ConfirmedPassword)
+    return res.status(400).json({ error: 'Missing required fields' });
+
+  if (Password !== ConfirmedPassword)
+    return res.status(400).json({ error: "Passwords do not match" });
+
+  await runQuery(res, async pool => {
+    const hash = await bcrypt.hash(Password, 10);
+
+    await pool.request()
+      .input('FullName', sql.NVarChar(100), FullName)
+      .input('NameWithInitials', sql.NVarChar(50), NameWithInitials)
+      .input('NIC', sql.VarChar(20), NIC)
+      .input('Telephone', sql.VarChar(15), Telephone ?? '')
+      .input('Username', sql.VarChar(50), Username)
+      .input('Password', sql.NVarChar(255), hash)
+      .query(`
+        INSERT INTO Users (FullName, NameWithInitials, NIC, Telephone, Username, Password)
+        VALUES (@FullName, @NameWithInitials, @NIC, @Telephone, @Username, @Password);
+        SELECT SCOPE_IDENTITY() AS UserID
+      `);
+  });
 });
 
+// PUT /users/:id
 app.put('/users/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
-  const { Name, Email, Role } = req.body;
+  const { FullName, NameWithInitials, NIC, Telephone, Username, Password, ConfirmedPassword } = req.body;
 
-  await runQuery(res, pool =>
-    pool.request()
+  if (Password && Password !== ConfirmedPassword)
+    return res.status(400).json({ error: "Passwords do not match" });
+
+  await runQuery(res, async pool => {
+    let query = `
+      UPDATE Users
+      SET FullName=@FullName, NameWithInitials=@NameWithInitials,
+          NIC=@NIC, Telephone=@Telephone, Username=@Username
+    `;
+
+    if (Password) {
+      const hash = await bcrypt.hash(Password, 10);
+      query += `, Password=@Password`;
+      await pool.request().input('Password', sql.NVarChar(255), hash);
+    }
+
+    query += ` WHERE UserID=@id; SELECT @@ROWCOUNT AS rowsAffected`;
+
+    await pool.request()
       .input('id', sql.Int, id)
-      .input('Name', sql.NVarChar(100), Name)
-      .input('Email', sql.NVarChar(100), Email)
-      .input('Role', sql.NVarChar(50), Role)
-      .query('UPDATE Users SET Name=@Name, Email=@Email, Role=@Role WHERE UserID=@id; SELECT @@ROWCOUNT AS rowsAffected')
-  );
+      .input('FullName', sql.NVarChar(100), FullName)
+      .input('NameWithInitials', sql.NVarChar(50), NameWithInitials)
+      .input('NIC', sql.VarChar(20), NIC)
+      .input('Telephone', sql.VarChar(15), Telephone ?? '')
+      .input('Username', sql.VarChar(50), Username)
+      .query(query);
+  });
 });
 
+// DELETE user
 app.delete('/users/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   await runQuery(res, pool =>
@@ -249,8 +270,7 @@ app.get("/summary", async (req, res) => {
         (SELECT COUNT(*) FROM vShortExpiry) AS shortExpiry,
         (SELECT COUNT(*) FROM Users) AS totalUsers
     `);
-
-    res.json(result.recordset[0]); // ✅ send only the first row, not an array
+    res.json(result.recordset[0]);
   } catch (err) {
     console.error("Error fetching summary:", err);
     res.status(500).send("Failed to fetch summary");

@@ -1,20 +1,34 @@
+// components/Users.tsx
 import React, { useEffect, useState } from 'react';
 import { api } from '../api/api';
 import '../styles/daily.css';
 import { useUndo } from "../hooks/useUndo";
+import { useNavigate } from 'react-router-dom';
 
 interface User {
   UserID: number;
-  Name: string;
-  Email: string;
-  Role: string;
+  FullName: string;
+  NameWithInitials: string;
+  NIC: string;
+  Telephone: string;
+  Username: string;
 }
 
 export const Users: React.FC = () => {
+  const navigate = useNavigate();
+
   const [users, setUsers] = useState<User[]>([]);
-  const [newUser, setNewUser] = useState({ Name: '', Email: '', Role: '' });
+  const [newUser, setNewUser] = useState({
+    FullName: '',
+    NameWithInitials: '',
+    NIC: '',
+    Telephone: '',
+    Username: '',
+    Password: '',
+    ConfirmedPassword: ''
+  });
   const [editId, setEditId] = useState<number | null>(null);
-  const [editUser, setEditUser] = useState({ Name: '', Email: '', Role: '' });
+  const [editUser, setEditUser] = useState<any>({ ...newUser });
 
   const { message, registerUndo, undo, clearMessage } = useUndo<User>();
 
@@ -22,12 +36,36 @@ export const Users: React.FC = () => {
 
   useEffect(() => { fetchUsers(); }, []);
 
+  // ADD USER (Registration)
   const handleAdd = async () => {
-    await api.post('/users', newUser);
-    setNewUser({ Name: '', Email: '', Role: '' });
-    fetchUsers();
+    if (newUser.Password !== newUser.ConfirmedPassword) {
+      alert("Passwords do not match!");
+      return;
+    }
+
+    try {
+      await api.post('/users', newUser);
+
+      setNewUser({
+        FullName: '',
+        NameWithInitials: '',
+        NIC: '',
+        Telephone: '',
+        Username: '',
+        Password: '',
+        ConfirmedPassword: ''
+      });
+
+      fetchUsers();
+
+      // ✅ Redirect to login after successful account creation
+      navigate('/login');
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Failed to create account");
+    }
   };
 
+  // DELETE USER
   const handleDelete = async (id: number) => {
     const deleted = users.find(u => u.UserID === id);
     if (!deleted) return;
@@ -42,15 +80,21 @@ export const Users: React.FC = () => {
         await api.post('/users', deleted);
         fetchUsers();
       }
-    }, `Deleted ${deleted.Name}. Undo?`);
+    }, `Deleted ${deleted.FullName}. Undo?`);
   };
 
+  // EDIT USER
   const handleEdit = (user: User) => {
     setEditId(user.UserID);
-    setEditUser({ Name: user.Name, Email: user.Email, Role: user.Role });
+    setEditUser({ ...user, Password: '', ConfirmedPassword: '' });
   };
 
   const handleSave = async (id: number) => {
+    if (editUser.Password && editUser.Password !== editUser.ConfirmedPassword) {
+      alert("Passwords do not match!");
+      return;
+    }
+
     const oldUser = users.find(u => u.UserID === id);
     await api.put(`/users/${id}`, editUser);
     setEditId(null);
@@ -63,30 +107,37 @@ export const Users: React.FC = () => {
           await api.put(`/users/${id}`, oldUser);
           fetchUsers();
         }
-      }, `Updated ${oldUser.Name}. Undo?`);
+      }, `Updated ${oldUser.FullName}. Undo?`);
     }
   };
 
   return (
     <div className="page-container">
-      <h2>Users</h2>
+      <h2>Create Account</h2>
 
-      {/* Add user form */}
+      {/* Add User Form */}
       <div className="form-inline">
-        <input type="text" placeholder="Name" value={newUser.Name} onChange={e => setNewUser({ ...newUser, Name: e.target.value })}/>
-        <input type="email" placeholder="Email" value={newUser.Email} onChange={e => setNewUser({ ...newUser, Email: e.target.value })}/>
-        <input type="text" placeholder="Role" value={newUser.Role} onChange={e => setNewUser({ ...newUser, Role: e.target.value })}/>
-        <button onClick={handleAdd}>Add</button>
+        <input placeholder="Full Name" value={newUser.FullName} onChange={e => setNewUser({ ...newUser, FullName: e.target.value })}/>
+        <input placeholder="Name With Initials" value={newUser.NameWithInitials} onChange={e => setNewUser({ ...newUser, NameWithInitials: e.target.value })}/>
+        <input placeholder="NIC" value={newUser.NIC} onChange={e => setNewUser({ ...newUser, NIC: e.target.value })}/>
+        <input placeholder="Telephone" value={newUser.Telephone} onChange={e => setNewUser({ ...newUser, Telephone: e.target.value })}/>
+        <input placeholder="Username" value={newUser.Username} onChange={e => setNewUser({ ...newUser, Username: e.target.value })}/>
+        <input type="password" placeholder="Password" value={newUser.Password} onChange={e => setNewUser({ ...newUser, Password: e.target.value })}/>
+        <input type="password" placeholder="Confirm Password" value={newUser.ConfirmedPassword} onChange={e => setNewUser({ ...newUser, ConfirmedPassword: e.target.value })}/>
+        <button onClick={handleAdd}>Register</button>
       </div>
 
-      {/* Users table */}
+      <h3>All Users (Admin View)</h3>
+      {/* Users Table */}
       <table className="table">
         <thead>
           <tr>
-            <th>User ID</th>
-            <th>Name</th>
-            <th>Email</th>
-            <th>Role</th>
+            <th>ID</th>
+            <th>Full Name</th>
+            <th>Initials</th>
+            <th>NIC</th>
+            <th>Telephone</th>
+            <th>Username</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -94,12 +145,16 @@ export const Users: React.FC = () => {
           {users.map(u => (
             <tr key={u.UserID}>
               <td>{u.UserID}</td>
-              <td>{editId === u.UserID ? <input value={editUser.Name} onChange={e => setEditUser({ ...editUser, Name: e.target.value })}/> : u.Name}</td>
-              <td>{editId === u.UserID ? <input type="email" value={editUser.Email} onChange={e => setEditUser({ ...editUser, Email: e.target.value })}/> : u.Email}</td>
-              <td>{editId === u.UserID ? <input value={editUser.Role} onChange={e => setEditUser({ ...editUser, Role: e.target.value })}/> : u.Role}</td>
+              <td>{editId === u.UserID ? <input value={editUser.FullName} onChange={e => setEditUser({ ...editUser, FullName: e.target.value })}/> : u.FullName}</td>
+              <td>{editId === u.UserID ? <input value={editUser.NameWithInitials} onChange={e => setEditUser({ ...editUser, NameWithInitials: e.target.value })}/> : u.NameWithInitials}</td>
+              <td>{editId === u.UserID ? <input value={editUser.NIC} onChange={e => setEditUser({ ...editUser, NIC: e.target.value })}/> : u.NIC}</td>
+              <td>{editId === u.UserID ? <input value={editUser.Telephone} onChange={e => setEditUser({ ...editUser, Telephone: e.target.value })}/> : u.Telephone}</td>
+              <td>{editId === u.UserID ? <input value={editUser.Username} onChange={e => setEditUser({ ...editUser, Username: e.target.value })}/> : u.Username}</td>
               <td>
-                {editId === u.UserID ? <button className="save-btn" onClick={() => handleSave(u.UserID)}>Save</button> : <button className="edit-btn" onClick={() => handleEdit(u)}>Edit</button>}
-                <button className="delete-btn" onClick={() => handleDelete(u.UserID)}>Delete</button>
+                {editId === u.UserID 
+                  ? <button onClick={() => handleSave(u.UserID)}>Save</button> 
+                  : <button onClick={() => handleEdit(u)}>Edit</button>}
+                <button onClick={() => handleDelete(u.UserID)}>Delete</button>
               </td>
             </tr>
           ))}
