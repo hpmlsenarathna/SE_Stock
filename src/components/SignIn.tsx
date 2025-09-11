@@ -1,108 +1,82 @@
-import axios from "axios";
-import { useEffect, useState } from "react";
-import { useUndo } from "../hooks/useUndo";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { api } from "../api/api";
+import "../styles/daily.css";
 
-// Define the type for the summary data
-type SummaryData = {
-  totalProducts: number;
-  totalStocks: number;
-  totalReleases: number;
-  shortExpiry: number;
-  totalUsers: number;
-};
-
-const Dashboard = () => {
-  const [summaryData, setSummaryData] = useState<SummaryData>({
-    totalProducts: 0,
-    totalStocks: 0,
-    totalReleases: 0,
-    shortExpiry: 0,
-    totalUsers: 0,
-  });
-  const [error, setError] = useState<string | null>(null);
-
-  // Use the custom undo hook
-  const { message, undo, clearMessage } = useUndo<any>();
+const SignIn: React.FC = () => {
+  const [formData, setFormData] = useState({ username: "", password: "" });
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchSummary = async () => {
-      try {
-        const res = await axios.get("http://localhost:5000/summary");
-        setSummaryData(res.data);
-      } catch (err) {
-        setError("Failed to load dashboard data");
-      }
-    };
-    fetchSummary();
-  }, []); // The empty dependency array ensures this runs only once on mount
+    // Logged-in users stay on Sign In page, no redirect
+    const loggedIn = localStorage.getItem("userLoggedIn");
+    if (loggedIn) {
+      console.log("Already logged in, but can access Sign In page.");
+    }
+  }, []);
 
-  if (error) {
-    return <div>{error}</div>;
-  }
-
-  // Styles for the dashboard cards and container
-  const cardStyle: React.CSSProperties = {
-    backgroundColor: "#f0f4f8",
-    borderRadius: "10px",
-    padding: "20px",
-    margin: "10px",
-    textAlign: "center",
-    flex: 1,
-    minWidth: "150px",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const numberStyle: React.CSSProperties = {
-    fontSize: "2rem",
-    fontWeight: "bold",
-    color: "#1a73e8",
-    margin: "10px 0",
-  };
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await api.post("/signin", formData);
+      alert(res.data.message);
 
-  const containerStyle: React.CSSProperties = {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "10px",
-    marginTop: "20px",
+      // Store auth state
+      localStorage.setItem("token", res.data.userId);
+      localStorage.setItem("userLoggedIn", "true");
+
+      navigate("/dashboard"); // Navigate only after successful login
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Login failed");
+    }
   };
 
   return (
-    <div>
-      <h2 style={{ textAlign: "center" }}>Dashboard Summary</h2>
-      <div style={containerStyle}>
-        {/* Render each summary card */}
-        <div style={cardStyle}>
-          <div>Total Products</div>
-          <div style={numberStyle}>{summaryData.totalProducts}</div>
-        </div>
-        <div style={cardStyle}>
-          <div>Total Stocks</div>
-          <div style={numberStyle}>{summaryData.totalStocks}</div>
-        </div>
-        <div style={cardStyle}>
-          <div>Total Releases</div>
-          <div style={numberStyle}>{summaryData.totalReleases}</div>
-        </div>
-        <div style={cardStyle}>
-          <div>Short Expiry</div>
-          <div style={numberStyle}>{summaryData.shortExpiry}</div>
-        </div>
-        <div style={cardStyle}>
-          <div>Total Users</div>
-          <div style={numberStyle}>{summaryData.totalUsers}</div>
-        </div>
-      </div>
+    <div className="form-container">
+      <h2>Sign In</h2>
+      <form onSubmit={handleSubmit}>
+        <input
+          name="username"
+          placeholder="Username"
+          value={formData.username}
+          onChange={handleChange}
+          required
+        />
+        <input
+          type="password"
+          name="password"
+          placeholder="Password"
+          value={formData.password}
+          onChange={handleChange}
+          required
+        />
+        <button type="submit">Sign In</button>
+      </form>
 
-      {/* Undo Snackbar, visible only if 'message' has a value */}
-      {message && (
-        <div className="undo-message">
-          {message}
-          <button onClick={undo}>Undo</button>
-          <button onClick={clearMessage}>X</button>
-        </div>
-      )}
+      <p>
+        <span
+          style={{ cursor: "pointer", color: "blue" }}
+          onClick={() => navigate("/forgot-password")}
+        >
+          Forgot Password?
+        </span>
+      </p>
+
+      <p>
+        Don't have an account?{" "}
+        <span
+          style={{ cursor: "pointer", color: "blue" }}
+          onClick={() => navigate("/signup")}
+        >
+          Sign Up
+        </span>
+      </p>
     </div>
   );
 };
 
-export default Dashboard;
+export default SignIn;

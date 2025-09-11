@@ -1,14 +1,20 @@
 import axios from "axios";
 import { useEffect, useState } from "react";
-import { useUndo } from "../hooks/useUndo";
+import { Package, TrendingUp, CloudUpload, Clock } from "lucide-react";
 
-// Define the type for the summary data
 type SummaryData = {
   totalProducts: number;
   totalStocks: number;
   totalReleases: number;
   shortExpiry: number;
-  totalUsers: number;
+};
+
+type Stat = {
+  title: string;
+  value: number;
+  icon: React.ElementType;
+  change: string;
+  trend: "up" | "down";
 };
 
 const Dashboard = () => {
@@ -17,11 +23,8 @@ const Dashboard = () => {
     totalStocks: 0,
     totalReleases: 0,
     shortExpiry: 0,
-    totalUsers: 0,
   });
   const [error, setError] = useState<string | null>(null);
-  // Use the custom undo hook
-  const { message, undo, clearMessage } = useUndo<any>();
 
   useEffect(() => {
     const fetchSummary = async () => {
@@ -29,77 +32,57 @@ const Dashboard = () => {
         const res = await axios.get("http://localhost:5000/summary");
         setSummaryData(res.data);
       } catch (err) {
-        setError("Failed to load dashboard data");
+        setError("⚠️ Failed to load dashboard data. Please check the server connection.");
       }
     };
     fetchSummary();
-  }, []); // The empty dependency array ensures this runs only once on mount
+  }, []);
 
   if (error) {
-    return <div>{error}</div>;
-  }
-
-  // Styles for the dashboard cards and container
-  const cardStyle: React.CSSProperties = {
-    backgroundColor: "#f0f4f8",
-    borderRadius: "10px",
-    padding: "20px",
-    margin: "10px",
-    textAlign: "center",
-    flex: 1,
-    minWidth: "150px",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-  };
-
-  const numberStyle: React.CSSProperties = {
-    fontSize: "2rem",
-    fontWeight: "bold",
-    color: "#1a73e8",
-    margin: "10px 0",
-  };
-
-  const containerStyle: React.CSSProperties = {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "10px",
-    marginTop: "20px",
-  };
-
-  return (
-    <div>
-      <h2 style={{ textAlign: "center" }}>Dashboard Summary</h2>
-      <div style={containerStyle}>
-        {/* Render each summary card */}
-        <div style={cardStyle}>
-          <div>Total Products</div>
-          <div style={numberStyle}>{summaryData.totalProducts}</div>
-        </div>
-        <div style={cardStyle}>
-          <div>Total Stocks</div>
-          <div style={numberStyle}>{summaryData.totalStocks}</div>
-        </div>
-        <div style={cardStyle}>
-          <div>Total Releases</div>
-          <div style={numberStyle}>{summaryData.totalReleases}</div>
-        </div>
-        <div style={cardStyle}>
-          <div>Short Expiry</div>
-          <div style={numberStyle}>{summaryData.shortExpiry}</div>
-        </div>
-        <div style={cardStyle}>
-          <div>Total Users</div>
-          <div style={numberStyle}>{summaryData.totalUsers}</div>
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-red-600 text-center text-lg p-6 bg-red-100 rounded-2xl shadow-lg border border-red-300">
+          {error}
         </div>
       </div>
+    );
+  }
 
-      {/* Undo Snackbar, visible only if 'message' has a value */}
-      {message && (
-        <div className="undo-message">
-          {message}
-          <button onClick={undo}>Undo</button>
-          <button onClick={clearMessage}>X</button>
-        </div>
-      )}
+  const stats: Stat[] = [
+    { title: "Total Products", value: summaryData.totalProducts, icon: Package, change: "+12%", trend: "up" },
+    { title: "Total Stocks", value: summaryData.totalStocks, icon: TrendingUp, change: "+8%", trend: "up" },
+    { title: "Total Releases", value: summaryData.totalReleases, icon: CloudUpload, change: "-3%", trend: "down" },
+    { title: "Short Expiry", value: summaryData.shortExpiry, icon: Clock, change: "+2%", trend: "up" },
+  ];
+
+  return (
+    <div className="dashboard-container">
+      <div className="dashboard-header">
+        <h1>Dashboard</h1>
+        <p>Welcome back 👋 Here’s your inventory overview.</p>
+      </div>
+
+      <div className="stats-grid">
+        {stats.map((stat, index) => {
+          const Icon = stat.icon;
+          return (
+            <div key={index} className="stat-card">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div className="stat-title">{stat.title}</div>
+                  <div className="stat-value">{stat.value}</div>
+                </div>
+                <div className={`stat-icon ${stat.trend}`}>
+                  <Icon size={24} />
+                </div>
+              </div>
+              <div className={`stat-change ${stat.trend}`}>
+                {stat.change} <span>from last month</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };

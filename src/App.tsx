@@ -1,67 +1,70 @@
 import React from "react";
-import { Routes, Route, useLocation, Navigate } from "react-router-dom";
-import { Sidebar } from "./components/Sidebar";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import  Sidebar  from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
-import { Products } from "./components/Products";
+import  Products  from "./components/Products";
 import { Stocks } from "./components/Stocks";
-import { Release } from "./components/Releases";
-import { ShortExpiry } from "./components/ShortExpiry";
-import { Users } from "./components/Users";
+import  Release  from "./components/Releases";
+import  ShortExpiry  from "./components/ShortExpiry";
 import { Settings } from "./components/Settings";
-import AuthPg from "./components/AuthPg";
+import SignUp from "./components/SignUp";
+import SignIn from "./components/SignIn";
+import ForgotPassword from "./components/ForgotPassword";
 import "./styles/daily.css";
 
 const App: React.FC = () => {
   const location = useLocation();
   const token = localStorage.getItem("token");
+  const isLoggedIn = token && token !== "null";
 
-  // ✅ Decide whether to show sidebar
   const hideSidebar =
-    location.pathname === "/login" || location.pathname === "/register";
+    location.pathname === "/" ||
+    location.pathname === "/login" ||
+    location.pathname === "/signup";
 
   return (
     <div className="App">
-      {!hideSidebar && <Sidebar />} {/* Only show Sidebar when logged in */}
-
+      {!hideSidebar && <Sidebar />}
       <div className="page-container">
-        <Routes>
-          {/* Auth pages */}
-          <Route path="/login" element={<AuthPg onLogin={() => {}} />} />
-          <Route path="/register" element={<Users />} />
+<Routes>
+  {/* Auth pages */}
+  <Route path="/" element={<SignIn />} />
+  <Route path="/login" element={<SignIn />} />
+  <Route path="/signin" element={<SignIn />} /> {/* <-- Add this line */}
+  <Route path="/signup" element={<SignUp />} />
 
-          {/* Protected pages */}
-          <Route
-            path="/"
-            element={token ? <Dashboard /> : <Navigate to="/login" />}
-          />
-          <Route
-            path="/products"
-            element={token ? <Products /> : <Navigate to="/login" />}
-          />
-          <Route
-            path="/stocks"
-            element={token ? <Stocks /> : <Navigate to="/login" />}
-          />
-          <Route
-            path="/releases"
-            element={token ? <Release /> : <Navigate to="/login" />}
-          />
-          <Route
-            path="/shortexpiry"
-            element={token ? <ShortExpiry /> : <Navigate to="/login" />}
-          />
-          <Route
-            path="/users"
-            element={token ? <Users /> : <Navigate to="/login" />}
-          />
-          <Route
-            path="/settings"
-            element={token ? <Settings /> : <Navigate to="/login" />}
-          />
-        </Routes>
+  {/* Protected pages */}
+  <Route
+    path="/dashboard"
+    element={isLoggedIn ? <Dashboard /> : <Navigate to="/login" />}
+  />
+  <Route
+    path="/products"
+    element={isLoggedIn ? <Products /> : <Navigate to="/login" />}
+  />
+  <Route
+    path="/stocks"
+    element={isLoggedIn ? <Stocks /> : <Navigate to="/login" />}
+  />
+  <Route
+    path="/releases"
+    element={isLoggedIn ? <Release /> : <Navigate to="/login" />}
+  />
+  <Route
+    path="/shortexpiry"
+    element={isLoggedIn ? <ShortExpiry /> : <Navigate to="/login" />}
+  />
+  <Route
+    path="/settings"
+    element={isLoggedIn ? <Settings /> : <Navigate to="/login" />}
+  />
+  <Route path="/forgot-password" element={<ForgotPassword />} />
+</Routes>
+
       </div>
     </div>
   );
 };
 
-export default App;
+export default App; // ✅ default export
+
